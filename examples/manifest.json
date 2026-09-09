@@ -1,0 +1,14 @@
+[
+  {
+    "file": "01.png",
+    "caption": "Silk · three attachments · wind strength 3.4",
+    "alt": "A coral woven cloth held by three gold attachment points and draping in front of a sphere and crate",
+    "steps": ["Keep the Silk material.", "Choose the Three points pin arrangement.", "Set Wind strength to 3.4.", "Play for about 0.8 seconds, pause, and capture the simulated viewport."]
+  },
+  {
+    "file": "02.png",
+    "caption": "Canvas · full top edge pinned · surface pulled sideways",
+    "alt": "A blue canvas sheet folded sideways by a pointer grab, revealing a solid sphere and crate behind it",
+    "steps": ["Choose Canvas material and Top edge attachments.", "Set Wind strength to 5.2.", "Play for about 0.8 seconds and pause.", "Grab the cloth near the lower-left middle of the visible sheet and pull it upward and left.", "Release and capture the actual deformed mesh."]
+  }
+]
