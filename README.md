@@ -1,64 +1,72 @@
 # Cloth Workbench
 
-An interactive woven sheet with editable attachments, pointer grabs, material compliance and solid collision objects. The mesh evolves through extended position-based dynamics; the drape is computed locally rather than played from a canned animation.
+A real-time cloth experiment with an editable triangle budget, material presets, surface grabs, attachments and OBJ export. Start with a flat sheet above a ball, then let the constrained mesh form its own folds. The standalone app and portfolio import the same `src/index.js`.
+
+[Open the portfolio demo](https://zachsm.com/experiments/cloth-workbench)
 
 ## Run
 
-The standalone app uses the shared `GraphicsWorkbench` runtime. Keep that checkout beside this repository for the local file dependency, then run:
+Requires Node.js 22 or later. The shared GraphicsWorkbench runtime is pinned in the lockfile.
 
 ```sh
-npm install
+npm ci
 npm run dev
 npm test
 npm run build
 ```
 
-Both portfolio and standalone views use the same `src/index.js` implementation. No GitHub Actions are included.
+The build produces a static site in `dist`. Processing, pointer interaction and exports stay in the browser. This repository has no GitHub Actions.
 
-## Try it
+## Controls
 
-- Drag the cloth to grab one of its vertices. Empty-space dragging orbits the camera. A fast grab is clipped against the sphere and crate, so its target cannot jump through those objects.
-- Compare Silk, Linen and Canvas. They change structural, shear and bending compliance, damping and mass; they also use different procedural woven materials.
-- Set wind and gravity, pause, step one frame, or reset the surface. The scene starts from 80 computed settling frames. Reduced-motion mode keeps it paused until you play it.
-- Choose corner, three-point, full-top-edge or free-fall attachments. **Edit pins** toggles attachments directly on the surface. Row and column controls select a vertex for keyboard operation. Undo restores the previous pin positions and set.
-- Inspect the collision objects or cloth in wireframe. Freeze and export the current simulated mesh as OBJ, or use the runtime’s PNG capture.
+- **Drop onto ball** resets the sheet to a horizontal plane above the sphere, clears attachments and previous velocity, then runs the simulation. It is an actual drop, not an animation clip.
+- **Reset cloth** restores that clean setup and pauses. Changing **Triangles** also recreates the simulation and mesh from a clean state.
+- Four budgets create **512**, **1,152**, **2,048** or **3,200** actual triangles. The quick tier is the default for narrow or coarse-pointer screens; desktop starts at 1,152. The OBJ export contains exactly the selected topology.
+- **Silk**, **Linen** and **Canvas** change stretch, shear, bending compliance, drag and contact friction. The procedural woven material changes with the preset too. **Wind strength** and **Gravity** modify the forces used by the solver.
+- Grab the cloth and pull. The target approaches at a bounded rate; pointer events never teleport a particle across the scene. The simulation advances while holding a grab, even if paused, and returns to its previous playing state on release.
+- Choose an attachment arrangement or enable **Edit pins by clicking cloth**. The row/column controls provide a keyboard alternative. **Undo pin edit** restores the prior attachment positions.
+- Pause, step exactly one display frame, inspect the mesh in wireframe, or **Freeze & export cloth OBJ**. Inactive tool switches release a grab and pointer capture while the shared runtime preserves the drape.
+
+There is no decorative stand or crate intersecting the sheet. The sphere and tabletop match the collision shapes. Every visit starts paused, including reduced-motion mode; motion begins through an explicit action.
 
 ## Solver
 
-`src/simulation.js` exports `ClothSimulation`. The default 32 × 26-cell grid has 891 particles and 1,664 triangles. Structural neighbors resist stretch, diagonals resist shear, and two-hop distance constraints approximate bending. Each substep accumulates XPBD multipliers across seven solver passes with compliance scaled by timestep squared.
+`src/simulation.js` exports `ClothSimulation`, `MATERIALS` and `RESOLUTIONS`.
 
-The fixed timestep is 1/120 second, bounded to four substeps per display frame. Velocity comes from position history, with gravity and a spatially varying wind force. Sphere, axis-aligned box and floor constraints project free particles out of solid geometry; contact reduces tangential motion. Grab motion additionally checks the swept segment against the sphere and box. Pins have zero inverse mass.
+The solver uses a fixed **1/120-second** step with at most four substeps per display frame. A stalled frame cannot inject a huge timestep. Structural and diagonal constraints resist stretching and shearing; two-hop distance constraints approximate bending. Each substep initializes the constraint multipliers once, then accumulates them across eight alternating solver sweeps. Compliance enters the XPBD update as `alpha / h²`. Material values are tuned for this bounded experiment rather than calibrated from fabric measurements.
 
-The compliance update follows [Macklin, Müller & Chentanez, XPBD (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). The cloth uses distance-based bending rather than the paper’s full range of possible elastic constraints.
+The elastic update follows [Macklin, Müller and Chentanez, XPBD (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). A separate maximum-extension inequality limits extreme pulls. Prediction also caps displacement relative to the grid spacing, so rapid input cannot overwhelm the contact solve.
 
-## Limits and tests
+### Contact and folding
 
-This is a bounded particle-surface simulation, not a garment CAD or production cloth engine. It has no self-collision, tearing, sewing, aerodynamic triangle forces or continuous triangle collision detection. Very tight folds can show triangle-level intersections even when particle contacts are satisfied. The visible stand supports the attachment markers but is not a collision shape.
+A spatial hash finds close particles without an all-pairs search. Particles in the same immediate mesh neighborhood are excluded; particles from different parts of the sheet are separated according to their inverse masses. Contact normals use position history for coincident particles, avoiding random impulses. This is active during constraint iterations, including ordinary ball drops—not just a diagnostic overlay. The approach is related to the particle-contact strategy demonstrated in [Matthias Müller's cloth self-collision example](https://matthias-research.github.io/pages/tenMinutePhysics/15-selfCollision.html).
 
-Tests cover finite sustained motion, fixed pins, structural strain, material differences, sphere/box/floor projection, swept grab contact, inverse-mass restoration, timestep bounds and OBJ topology. Exports contain simulated vertices and faces; source textures are generated by Canvas drawing instructions.
+Sphere and floor contacts are projected each solver pass. A resolution-dependent sphere allowance covers the chord between contact vertices, so a triangle facet does not visibly cut through the ball between its particles. Positional contact friction prevents a resting drape from slowly creeping off the sphere. There are no hidden pins holding the center of the sheet.
 
-## Run and explore
+## Verification
 
-[Open the portfolio demo](https://zachsm.com/experiments/cloth-workbench). This repository runs independently and exports the same implementation used by the portfolio.
+`npm test` exercises:
 
-Requires Node.js 22 or later.
+- Twelve-second drops at low, balanced and highest resolution, checking finite coordinates, maximum structural strain, actual triangle-to-sphere distance, retained unpinned drape, settling movement and non-neighbor separation.
+- A deliberately coincident pair of non-neighbor particles, proving the spatial-contact solver separates it.
+- Actual OBJ vertex and face counts for all four resolution tiers.
+- Reset and Drop clearing attachment, grab, velocity, timestep and constraint history.
+- Large pointer targets and swept sphere clipping, material differences, fixed attachments and deterministic fixed-step accumulation.
 
-```sh
-npm ci
-npm test
-npm run dev
-```
+Browser verification covers all four resolution selections, real Drop operations, parsed OBJ counts, clean Reset outputs, pointer interaction and mobile-width controls. These are numerical and interaction checks, not a claim of a production garment solver.
 
-`npm run build` produces a static site in `dist`. Editing, uploaded files, and exports stay in the browser. No account, server processing, or GitHub Actions is required.
+## Limits
+
+Self-contact uses separated particles, **not continuous triangle–triangle or edge–edge collision detection**. Exceptionally tight folds can still overlap between particles, particularly at the lowest resolution. There is no tearing, sewing, shell-volume model or calibrated aerodynamic solver. Bending uses two-hop distances rather than a full shell constitutive model. Higher triangle budgets cost more CPU time; the quick tier deliberately trades fold detail for speed on small devices.
 
 ## Captured examples
 
-![A coral woven cloth held by three gold attachment points and draping in front of a sphere and crate](examples/01.png)
+![Coral silk cloth draped over a ball with stitched edges and broad folds](examples/01.png)
 
-Silk · three attachments · wind strength 3.4.
+Silk, 1,152 triangles, unpinned drop onto the ball.
 
-![A blue canvas sheet folded sideways by a pointer grab, revealing a solid sphere and crate behind it](examples/02.png)
+![Blue canvas draped over the sphere with stiffer folds, viewed from another angle](examples/02.png)
 
-Canvas · full top edge pinned · surface pulled sideways.
+Canvas, 3,200 triangles, unpinned drop onto the same ball.
 
-Exact reproduction steps are recorded in [the example manifest](examples/manifest.json).
+Both images are captured from the running editor. [The manifest](examples/manifest.json) records the controls and reproduction steps.
